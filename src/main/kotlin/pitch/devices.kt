@@ -1,7 +1,10 @@
 package pitch
 
 import javafx.collections.FXCollections
-import tornadofx.*
+import tornadofx.ChangeListener
+import tornadofx.Controller
+import tornadofx.getProperty
+import tornadofx.property
 import javax.sound.midi.*
 import javax.sound.midi.ShortMessage.NOTE_OFF
 import javax.sound.midi.ShortMessage.NOTE_ON
@@ -10,33 +13,41 @@ class DevicesController : Controller() {
     val inputDevices = FXCollections.observableArrayList<MidiDevice>()
     val outputDevices = FXCollections.observableArrayList<MidiDevice>()
 
-    private var inputDevice: MidiDevice? = null
-    private var outputDevice: MidiDevice? = null
+    fun inputDeviceProperty() = getProperty(DevicesController::inputDevice)
+    fun outputDeviceProperty() = getProperty(DevicesController::outputDevice)
 
-    private var noteProcessor = NoteProcessor()
+    private var inputDevice: MidiDevice? by property(null)
+    private var outputDevice: MidiDevice? by property(null)
+    private val mainController: MainController by inject()
 
-    fun changeInputDevice(device: MidiDevice?) {
-        if (device == inputDevice) return
-        inputDevice?.close()
-
-        device?.open()
-        device?.transmitter?.receiver = MidiInputReceiver(device?.deviceInfo.toString())
-
-        inputDevice = device
+    init {
+        inputDeviceProperty().addListener(ChangeListener { _, oldValue, newValue -> changeInputDevice(newValue) })
+        outputDeviceProperty().addListener(ChangeListener { _, oldValue, newValue -> changeOutputDevice(newValue) })
     }
 
-    fun changeOutputDevice(device: MidiDevice?) {
-        if (device == outputDevice) return
+    private fun changeInputDevice(device: MidiDevice?) {
+//        if (device == inputDevice) return TODO save previous device
+        inputDevice?.close()
+        device?.open()
+        device?.transmitter?.receiver = MidiInputReceiver(device?.deviceInfo.toString(), mainController)
+
+        inputDeviceProperty().set(device)
+    }
+
+    private fun changeOutputDevice(device: MidiDevice?) {
+//        if (device == outputDevice) return TODO save previous device
         outputDevice?.close()
 
         device?.open()
 
-        outputDevice = device
+        outputDeviceProperty().set(device)
     }
 
-    fun reset() {
+    fun dispose() {
         inputDevice?.close()
         outputDevice?.close()
+        inputDeviceProperty().set(null)
+        outputDeviceProperty().set(null)
     }
 
     fun reloadDevices() {
@@ -77,7 +88,7 @@ class DevicesController : Controller() {
     }
 }
 
-open class MidiInputReceiver(private val name: String, private val noteProcessor: NoteProcessor) : Receiver {
+open class MidiInputReceiver(private val name: String, private val noteProcessor: MainController) : Receiver {
 
     override fun send(msg: MidiMessage, timeStamp: Long) {
         println("midi received")

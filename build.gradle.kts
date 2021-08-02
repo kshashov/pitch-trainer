@@ -21,7 +21,7 @@ dependencies {
 
 javafx {
 //    version = "11.0.2"
-    modules("javafx.controls", "javafx.graphics", "javafx.base")
+    modules("javafx.controls", "javafx.graphics", "javafx.base", "javafx.media")
 }
 
 tasks.test {
@@ -41,7 +41,7 @@ tasks.compileJava {
     doFirst {
         options.compilerArgs = listOf(
             "--module-path", classpath.asPath,
-            "--add-modules", "javafx.controls,javafx.fxml,javafx.graphics"
+            "--add-modules", "javafx.controls,javafx.fxml,javafx.graphics,javafx.media"
         )
         println(options.compilerArgs)
     }
