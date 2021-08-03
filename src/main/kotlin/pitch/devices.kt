@@ -21,26 +21,37 @@ class DevicesController : Controller() {
     private val mainController: MainController by inject()
 
     init {
-        inputDeviceProperty().addListener(ChangeListener { _, oldValue, newValue -> changeInputDevice(newValue) })
-        outputDeviceProperty().addListener(ChangeListener { _, oldValue, newValue -> changeOutputDevice(newValue) })
+        inputDeviceProperty().addListener(ChangeListener { _, oldValue, newValue ->
+            changeInputDevice(
+                oldValue,
+                newValue
+            )
+        })
+        outputDeviceProperty().addListener(ChangeListener { _, oldValue, newValue ->
+            changeOutputDevice(
+                oldValue,
+                newValue
+            )
+        })
     }
 
-    private fun changeInputDevice(device: MidiDevice?) {
-//        if (device == inputDevice) return TODO save previous device
-        inputDevice?.close()
-        device?.open()
-        device?.transmitter?.receiver = MidiInputReceiver(device?.deviceInfo.toString(), mainController)
-
-        inputDeviceProperty().set(device)
+    private fun changeInputDevice(old: MidiDevice?, device: MidiDevice?) {
+        try {
+            old?.close()
+            device?.open()
+            device?.transmitter?.receiver = MidiInputReceiver(device?.deviceInfo.toString(), mainController)
+        } catch (ex: Exception) {
+            inputDeviceProperty().set(old)
+        }
     }
 
-    private fun changeOutputDevice(device: MidiDevice?) {
-//        if (device == outputDevice) return TODO save previous device
-        outputDevice?.close()
-
-        device?.open()
-
-        outputDeviceProperty().set(device)
+    private fun changeOutputDevice(old: MidiDevice?, device: MidiDevice?) {
+        try {
+            old?.close()
+            device?.open()
+        } catch (ex: Exception) {
+            outputDeviceProperty().set(old)
+        }
     }
 
     fun dispose() {
@@ -51,40 +62,38 @@ class DevicesController : Controller() {
     }
 
     fun reloadDevices() {
-        println("Hello World!")
-
         var device: MidiDevice?
-        var infos = MidiSystem.getMidiDeviceInfo()
+        val infos = MidiSystem.getMidiDeviceInfo()
         val newDevices = mutableListOf<MidiDevice>();
         for (midiSystem in infos) {
             device = MidiSystem.getMidiDevice(midiSystem)
             newDevices.add(device)
-            //does the device have any transmitters?
-            //if it does, add it to the device list
-            println(midiSystem)
         }
 
+        val inputDevice = inputDeviceProperty().get()
+        val outputDevice = outputDeviceProperty().get()
+
+        inputDevices.setAll(newDevices.filter { it.maxTransmitters == -1 })
+        outputDevices.setAll(newDevices.filter { it.maxReceivers == -1 })
+
+        // Try to restore previous devices choise
         if (inputDevice != null) {
             try {
-                changeInputDevice(newDevices.first { it.deviceInfo.name.equals(inputDevice!!.deviceInfo.name) })
+                inputDeviceProperty().set(
+                    newDevices.first { it.deviceInfo.name.equals(inputDevice.deviceInfo.name) && (it.maxTransmitters == -1) })
             } catch (ex: NoSuchElementException) {
-                changeInputDevice(null)
+                // Do nothing as we already have null device after setAll
             }
         }
 
         if (outputDevice != null) {
             try {
-                changeOutputDevice(newDevices.first { it.deviceInfo.name.equals(outputDevice!!.deviceInfo.name) })
+                outputDeviceProperty().set(
+                    newDevices.first { it.deviceInfo.name.equals(outputDevice.deviceInfo.name) && (it.maxReceivers == -1) })
             } catch (ex: NoSuchElementException) {
-                changeOutputDevice(null)
+                // Do nothing as we already have null device after setAll
             }
         }
-
-        inputDevices.clear()
-        inputDevices.addAll(newDevices.filter { it.maxTransmitters == -1 })
-
-        outputDevices.clear()
-        outputDevices.addAll(newDevices.filter { it.maxReceivers == -1 })
     }
 }
 

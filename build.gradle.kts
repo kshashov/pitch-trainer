@@ -33,6 +33,7 @@ tasks.withType<KotlinCompile>() {
 }
 
 application {
+    mainClassName = "pitch.MyApp"
     mainClass.set("pitch.MyApp")
 }
 

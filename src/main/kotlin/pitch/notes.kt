@@ -1,6 +1,8 @@
 package pitch
 
-enum class Note(val title: String, val index: Int, val white: Boolean = true) {
+import tornadofx.JsonModel
+
+enum class Note(val title: String, val index: Int, val white: Boolean = true) : JsonModel {
     C("C", 0),
     Csh("C#", 1, false),
     D("D", 2),
