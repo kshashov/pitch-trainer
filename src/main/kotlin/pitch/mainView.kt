@@ -152,6 +152,39 @@ class SettingsView : View("Pitch Trainer") {
                     checkbox("", controller.isWrongOctaveAllowedProperty())
                 }
             }
+
+            fieldset("Control") {
+
+                field("Next note") {
+                    combobox(controller.nextNoteProperty()) {
+                        useMaxWidth = true
+                        cellFactory = noteCellRenderer
+                        items = controller.notes
+                        buttonCell = noteCellRenderer.call(null)
+                    }
+                    combobox(controller.nextOctaveProperty()) {
+                        useMaxWidth = true
+                        cellFactory = octaveRenderer
+                        items = controller.octaves
+                        buttonCell = octaveRenderer.call(null)
+                    }
+                }
+
+                field("Repeat note") {
+                    combobox(controller.repeatNoteProperty()) {
+                        useMaxWidth = true
+                        cellFactory = noteCellRenderer
+                        items = controller.notes
+                        buttonCell = noteCellRenderer.call(null)
+                    }
+                    combobox(controller.repeatOctaveProperty()) {
+                        useMaxWidth = true
+                        cellFactory = octaveRenderer
+                        items = controller.octaves
+                        buttonCell = octaveRenderer.call(null)
+                    }
+                }
+            }
         }
         center = vbox {
             val converter = object : StringConverter<KeyboardNote?>() {
@@ -202,6 +235,10 @@ class MainController : Controller() {
     fun relativeNoteProperty() = getProperty(MainController::relativeNote)
     fun relativeOctaveProperty() = getProperty(MainController::relativeOctave)
     fun relativeModeProperty() = getProperty(MainController::relativeMode)
+    fun nextNoteProperty() = getProperty(MainController::nextNote)
+    fun nextOctaveProperty() = getProperty(MainController::nextOctave)
+    fun repeatNoteProperty() = getProperty(MainController::repeatNote)
+    fun repeatOctaveProperty() = getProperty(MainController::repeatOctave)
 
     // Internal properties
     fun currentNoteProperty() = getProperty(MainController::currentNote) // Current random note from specified range
@@ -214,6 +251,10 @@ class MainController : Controller() {
     private var endOctave: Int by property(config.int("startOctave", 3))
     private var relativeNote: Note by property(Note.valueOf(config.string("startNote", Note.C.toString())))
     private var relativeOctave: Int? by property(config.int("relativeOctave"))
+    private var nextNote: Note by property(Note.valueOf(config.string("nextNote", Note.C.toString())))
+    private var nextOctave: Int by property(config.int("nextOctave", 1))
+    private var repeatNote: Note by property(Note.valueOf(config.string("repeatNote", Note.D.toString())))
+    private var repeatOctave: Int by property(config.int("repeatOctave", 1))
     private var relativeMode: RelativeMode by property(
         RelativeMode.valueOf(
             config.string(
@@ -229,11 +270,14 @@ class MainController : Controller() {
     private val successClip: AudioClip = AudioClip(resources["/media/success.wav"])
     private val faultClip: AudioClip = AudioClip(resources["/media/fault.wav"])
     private val threadPool = ScheduledThreadPoolExecutor(1) // It is enough to play notes
+    private var nextCode: Int
+    private var repeatCode: Int
 
     init {
         relativeNotes.add(0, null)
         relativeOctaves.add(0, null)
-
+        nextCode = NoteProcessor.code(nextNote, nextOctave)
+        repeatCode = NoteProcessor.code(repeatNote, repeatOctave)
 
         val savedAllowedNotes = config.string("allowedNotes")?.split(',')?.map { Note.valueOf(it) }
         if (savedAllowedNotes != null) allowedNotes.setAll(savedAllowedNotes)
@@ -286,6 +330,28 @@ class MainController : Controller() {
             config.save()
         })
 
+        nextNoteProperty().addListener(ChangeListener { _, _, newValue ->
+            nextCode = NoteProcessor.code(nextNote, nextOctave)
+            config["nextNote"] = newValue.toString()
+            config.save()
+        })
+        nextOctaveProperty().addListener(ChangeListener { _, _, newValue ->
+            nextCode = NoteProcessor.code(nextNote, nextOctave)
+            config["nextOctave"] = newValue.toString()
+            config.save()
+        })
+
+        repeatNoteProperty().addListener(ChangeListener { _, _, newValue ->
+            repeatCode = NoteProcessor.code(repeatNote, repeatOctave)
+            config["repeatNote"] = newValue.toString()
+            config.save()
+        })
+        repeatOctaveProperty().addListener(ChangeListener { _, _, newValue ->
+            repeatCode = NoteProcessor.code(repeatNote, repeatOctave)
+            config["repeatOctave"] = newValue.toString()
+            config.save()
+        })
+
         successClip.volume = 0.5
         faultClip.volume = 0.5
 
@@ -319,13 +385,13 @@ class MainController : Controller() {
     }
 
     fun postNote(code: Int) {
-        if (code == 21) { // TODO extract to settings
+        if (code == nextCode) {
             val note = KeyboardNote.fromCode(wishNote())
             Platform.runLater {
                 currentNoteProperty().set(note)
             }
             play(note)
-        } else if (code == 23) { // TODO extract to settings
+        } else if (code == repeatCode) {
             val note = currentNoteProperty().get() ?: return
 
             play(note)
