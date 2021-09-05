@@ -1,5 +1,6 @@
 package pitch
 
+import javafx.application.Platform
 import javafx.collections.FXCollections
 import tornadofx.ChangeListener
 import tornadofx.Controller
@@ -41,7 +42,9 @@ class DevicesController : Controller() {
             device?.open()
             device?.transmitter?.receiver = MidiInputReceiver(device?.deviceInfo.toString(), mainController)
         } catch (ex: Exception) {
-            inputDeviceProperty().set(old)
+            Platform.runLater {
+                inputDeviceProperty().set(old)
+            }
         }
     }
 
@@ -50,7 +53,9 @@ class DevicesController : Controller() {
             old?.close()
             device?.open()
         } catch (ex: Exception) {
-            outputDeviceProperty().set(old)
+            Platform.runLater {
+                outputDeviceProperty().set(old)
+            }
         }
     }
 

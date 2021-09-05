@@ -20,7 +20,7 @@ fun <I> simpleCellRenderer(emptyText: String = "", valueProvider: (I) -> String)
 
 fun <T> bindObservable(source: ObservableList<T>, target: ObservableList<T>): ObservableList<T> {
     source.addListener { c: ListChangeListener.Change<out T> ->
-        // TODO use wasAdded, wasRemoved, etc methods
+        // TODO MINOR use wasAdded, wasRemoved, etc methods
         target.setAll(c.list)
     }
     return target

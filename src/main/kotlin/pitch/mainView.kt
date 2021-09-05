@@ -21,13 +21,16 @@ import javax.sound.midi.ShortMessage.NOTE_ON
 
 class MyApp : App(SettingsView::class, Styles::class) {
     init {
-        reloadViewsOnFocus()
+//        reloadViewsOnFocus()
     }
 }
 
-// TODO reset excercise if settings are changed
-// TODO Show streak and graph
-// TODO Relative note order modes
+// UX impovements
+// TODO auto next play
+// TODO Allow `play` only after validation
+// TODO reset/next/repeat excercise buttons
+// TODO Show streak and stats
+// Relative mode impovements
 // TODO Relative note - dont detect mistakes
 
 class SettingsView : View("Pitch Trainer") {
@@ -71,9 +74,18 @@ class SettingsView : View("Pitch Trainer") {
             }
 
             fieldset("Relative pitch mode") {
-                val octaveRenderer = simpleCellRenderer<Int?>("From second note") { it!!.toString() }
+                val octaveRenderer = simpleCellRenderer<Int?>("From main note") { it!!.toString() }
+                val simpleCellRenderer = simpleCellRenderer<RelativeMode> { it.title }
 
-                field("Relative note") {
+                field("Mode") {
+                    combobox(controller.relativeModeProperty()) {
+                        useMaxWidth = true
+                        cellFactory = simpleCellRenderer
+                        items = controller.relativeModes
+                        buttonCell = simpleCellRenderer.call(null)
+                    }
+                }
+                field("Note") {
                     combobox(controller.relativeNoteProperty()) {
                         useMaxWidth = true
                         cellFactory = noteCellRenderer
@@ -174,6 +186,7 @@ class MainController : Controller() {
     // Helpful dictionaries
     val relativeNotes = FXCollections.observableArrayList(Note.values().toMutableList())
     val relativeOctaves = FXCollections.observableArrayList((1..7).toList())
+    val relativeModes = FXCollections.observableArrayList(RelativeMode.values().toMutableList())
     val notes = FXCollections.observableArrayList(Note.values().toMutableList())
     val octaves = FXCollections.observableArrayList((1..7).toList())
 
@@ -188,18 +201,27 @@ class MainController : Controller() {
     fun endOctaveProperty() = getProperty(MainController::endOctave)
     fun relativeNoteProperty() = getProperty(MainController::relativeNote)
     fun relativeOctaveProperty() = getProperty(MainController::relativeOctave)
+    fun relativeModeProperty() = getProperty(MainController::relativeMode)
 
     // Internal properties
     fun currentNoteProperty() = getProperty(MainController::currentNote) // Current random note from specified range
     fun guessNoteProperty() = getProperty(MainController::guessNote) // User guess
 
     private var isWrongOctaveAllowed by property(config.boolean("isWrongOctaveAllowed", true))
-    private var startNote: Note? by property(Note.valueOf(config.string("startNote", "C")))
-    private var endNote: Note? by property(Note.valueOf(config.string("endNote", "B")))
-    private var startOctave: Int? by property(config.int("startOctave", 2))
-    private var endOctave: Int? by property(config.int("startOctave", 3))
-    private var relativeNote: Note? by property(Note.valueOf(config.string("relativeNote", "C")))
+    private var startNote: Note by property(Note.valueOf(config.string("startNote", Note.C.toString())))
+    private var endNote: Note by property(Note.valueOf(config.string("endNote", Note.B.toString())))
+    private var startOctave: Int by property(config.int("startOctave", 2))
+    private var endOctave: Int by property(config.int("startOctave", 3))
+    private var relativeNote: Note by property(Note.valueOf(config.string("startNote", Note.C.toString())))
     private var relativeOctave: Int? by property(config.int("relativeOctave"))
+    private var relativeMode: RelativeMode by property(
+        RelativeMode.valueOf(
+            config.string(
+                "relativeMode",
+                RelativeMode.ASCENDING.toString()
+            )
+        )
+    )
 
     private var currentNote: KeyboardNote? by property(null)
     private var guessNote: KeyboardNote? by property(null)
@@ -227,12 +249,12 @@ class MainController : Controller() {
             adjustAllowedCodes()
         })
         startOctaveProperty().addListener(ChangeListener { _, _, newValue ->
-            config["startOctave"] = newValue?.toString()
+            config["startOctave"] = newValue.toString()
             config.save()
             adjustAllowedCodes()
         })
         endOctaveProperty().addListener(ChangeListener { _, _, newValue ->
-            config["endOctave"] = newValue?.toString()
+            config["startOctave"] = newValue.toString()
             config.save()
             adjustAllowedCodes()
         })
@@ -249,11 +271,18 @@ class MainController : Controller() {
             config.save()
         })
         relativeNoteProperty().addListener(ChangeListener { _, _, newValue ->
-            config["relativeNote"] = newValue?.toString()
+            config["relativeNote"] = newValue.toString()
             config.save()
         })
         relativeOctaveProperty().addListener(ChangeListener { _, _, newValue ->
-            config["relativeOctave"] = newValue?.toString()
+            if (newValue == null) config.remove("relativeOctave")
+            else config["relativeOctave"] = newValue.toString()
+
+            config.save()
+        })
+
+        relativeModeProperty().addListener(ChangeListener { _, _, newValue ->
+            config["relativeMode"] = newValue.toString()
             config.save()
         })
 
@@ -322,18 +351,37 @@ class MainController : Controller() {
     }
 
     private fun play(note: KeyboardNote) {
-        val relativeNote = relativeNoteProperty().get()
-        if (relativeNote != null) {
+        val relativeMode = relativeModeProperty().get()
+
+        if (relativeMode == RelativeMode.NONE) {
+            playNote(500L, note)
+        } else {
+            // Relative mode
+            val relativeNote = relativeNoteProperty().get()
+
             var relativeOctave = relativeOctaveProperty().get()
             if (relativeOctave == null) {
                 relativeOctave = note.octave!! // Get octave from current note
             }
-            playNote(KeyboardNote.fromNote(relativeNote, relativeOctave))
+
+            var first = KeyboardNote.fromNote(relativeNote, relativeOctave)
+            var second = note
+
+            val ascending = second.note!!.index >= first.note!!.index
+
+            if (((relativeMode == RelativeMode.ASCENDING) && ascending)
+                || ((relativeMode == RelativeMode.DESCENDING) && !ascending)
+            ) {
+                playNote(500L, first)
+                playNote(1700L, second)
+            } else {
+                playNote(500L, second)
+                playNote(1700L, first)
+            }
         }
-        playNote(note)
     }
 
-    private fun playNote(note: KeyboardNote) {
+    private fun playNote(initialDelay: Long, note: KeyboardNote) {
         if (note.code == null) return
 
         try {
@@ -342,14 +390,14 @@ class MainController : Controller() {
                     ShortMessage(NOTE_ON, 4, note.code, 93),
                     -1
                 )
-            }, 500L, TimeUnit.MICROSECONDS)
+            }, initialDelay, TimeUnit.MILLISECONDS)
 
             threadPool.schedule({
                 devicesController.outputDeviceProperty().get()!!.receiver.send(
                     ShortMessage(NOTE_OFF, 4, note.code, 93),
                     -1
                 )
-            }, 500L + 1000L, TimeUnit.MICROSECONDS)
+            }, initialDelay + 1000L, TimeUnit.MILLISECONDS)
         } catch (ex: Exception) {
             error("Looks like something wrong with your MIDI device. Please check the settings or reopen the app.")
         }
@@ -376,4 +424,8 @@ class MainController : Controller() {
     private fun wishNote(): Int {
         return allowedCodes.random()
     }
+}
+
+enum class RelativeMode(val title: String) {
+    NONE("Off"), ASCENDING("Ascending"), DESCENDING("Descending"), RANDOM("Random")
 }

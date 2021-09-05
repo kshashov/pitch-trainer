@@ -17,6 +17,7 @@ dependencies {
     testImplementation(kotlin("test-junit"))
 
     implementation("no.tornado:tornadofx:1.7.20")
+    implementation(kotlin("stdlib-jdk8"))
 }
 
 javafx {
@@ -46,4 +47,12 @@ tasks.compileJava {
         )
         println(options.compilerArgs)
     }
+}
+val compileKotlin: KotlinCompile by tasks
+compileKotlin.kotlinOptions {
+    jvmTarget = "1.8"
+}
+val compileTestKotlin: KotlinCompile by tasks
+compileTestKotlin.kotlinOptions {
+    jvmTarget = "1.8"
 }
